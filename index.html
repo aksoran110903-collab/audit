@@ -81,7 +81,13 @@ button:focus-visible,.chip:focus-visible{outline:3px solid var(--accent);outline
 .mask{-webkit-text-security:disc;text-security:disc}
 .link{background:none;border:0;padding:0;color:var(--muted);text-decoration:underline;font-weight:400;font-size:12px}
 #cam{position:fixed;inset:0;z-index:50;background:#000;display:flex;flex-direction:column}
-#cam video{flex:1;min-height:0;width:100%;object-fit:contain;background:#000}
+#cam .vwrap{flex:1;min-height:0;position:relative}
+#cam video{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:#000}
+#focusRing{position:absolute;width:64px;height:64px;margin:-32px 0 0 -32px;border:2px solid #ffd54a;border-radius:50%;pointer-events:none}
+#cam .zoom{display:flex;align-items:center;gap:10px;padding:8px 16px;background:#000;color:#cfd8e3;font-size:13px}
+#cam .zoom input{flex:1}
+#cam .ctl2{text-align:center;background:#000;padding:0 16px calc(10px + env(safe-area-inset-bottom,0px))}
+#cam .ctl2 .link{color:#9ec5ff;background:none;border:0;font-size:13px;text-decoration:underline}
 #cam .ctl{display:flex;gap:12px;justify-content:center;padding:14px 16px calc(14px + env(safe-area-inset-bottom,0px));background:#000}
 #cam .ctl button{min-width:120px;min-height:48px;font-size:16px}
 #cam .hint{color:#cfd8e3;text-align:center;font-size:13px;padding:calc(10px + env(safe-area-inset-top,0px)) 16px 6px;background:#000}
@@ -145,16 +151,18 @@ button:focus-visible,.chip:focus-visible{outline:3px solid var(--accent);outline
 </div>
 
 <div id="cam" hidden>
-  <div class="hint" id="camHint">라벨/화면이 글자가 선명하게 보이도록 맞추고 촬영하세요. 사진은 이 폰에 저장되지 않습니다.</div>
-  <video id="camv" playsinline autoplay muted></video>
-  <div class="ctl"><button id="camShot" type="button" class="pri">촬영</button><button id="camCancel" type="button">취소</button></div>
+  <div class="hint" id="camHint">라벨에서 15~20cm 떨어져 찍으세요. 흐리면 화면을 톡 눌러 초점을 다시 맞추거나 확대하세요. 사진은 이 폰에 저장되지 않습니다.</div>
+  <div class="vwrap"><video id="camv" playsinline autoplay muted></video><div id="focusRing" hidden></div></div>
+  <div class="zoom" id="zoomRow" hidden><span>확대</span><input id="zoom" type="range" min="1" max="1" step="0.1" value="1" aria-label="확대"></div>
+  <div class="ctl"><button id="camShot" type="button" class="pri">촬영</button><button id="camLens" type="button" hidden>렌즈 바꾸기</button><button id="camCancel" type="button">취소</button></div>
+  <div class="ctl2"><button id="camNative" type="button" class="link">초점이 계속 안 맞으면: 폰 기본 카메라로 찍기</button></div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js" async onerror="window.__noOcr=true"></script>
 <script>
 (function(){
   var $=function(s){return document.querySelector(s)};
-  var KINDS=[['monitor','모니터'],['dock','도킹'],['pc','PC'],['printer','프린터'],['video','영상장비']],KLABEL={monitor:'모니터',dock:'도킹',pc:'PC',printer:'프린터',video:'영상장비'},KORDER={monitor:0,dock:1,pc:2,printer:3,video:4},HINT={monitor:'OSD 정보 화면 또는 뒷면 라벨',dock:'바닥면 S/N 스티커',pc:'본체 라벨 또는 정보 화면',printer:'뒷면·옆면 S/N 라벨',video:'뒷면·바닥면 S/N 라벨'},models=[],isAdmin=false,pcOcr=false,PAGE_VER='2026.11.06-a',serverVer='',canExtract=false,token='',who='',records=[],drafts=[],filter='today',seq=0,worker=null,workerP=null,editing=null;
+  var KINDS=[['monitor','모니터'],['dock','도킹'],['pc','PC'],['printer','프린터'],['video','영상장비']],KLABEL={monitor:'모니터',dock:'도킹',pc:'PC',printer:'프린터',video:'영상장비'},KORDER={monitor:0,dock:1,pc:2,printer:3,video:4},HINT={monitor:'OSD 정보 화면 또는 뒷면 라벨',dock:'바닥면 S/N 스티커',pc:'본체 라벨 또는 정보 화면',printer:'뒷면·옆면 S/N 라벨',video:'뒷면·바닥면 S/N 라벨'},models=[],isAdmin=false,pcOcr=false,PAGE_VER='2026.11.06-b',serverVer='',canExtract=false,token='',who='',records=[],drafts=[],filter='today',seq=0,worker=null,workerP=null,editing=null;
 
   /* 이 폰에는 창을 닫으면 사라지는 임시 저장(sessionStorage)만 씁니다 */
   /* 서버 주소: 이 화면을 서버가 아닌 곳(GitHub Pages 등)에 올렸을 때 사용. 터널시작.bat 이 front.html 을 만들 때 채움 */
@@ -192,14 +200,68 @@ button:focus-visible,.chip:focus-visible{outline:3px solid var(--accent);outline
   /* ---------- 앱 안에서 직접 촬영 (갤러리에 저장되지 않음) ---------- */
   var camStream=null,camKind=null,camPreset=null,fileKind=null,filePreset=null;
   function presetFor(kind){var id=ss('m_'+kind);return models.filter(function(x){return String(x.id)===id&&x.kind===kind})[0]||null}
-  function closeCam(){if(camStream){camStream.getTracks().forEach(function(t){t.stop()})}camStream=null;$('#camv').srcObject=null;$('#cam').hidden=true}
+  function closeCam(){if(camStream){camStream.getTracks().forEach(function(t){t.stop()})}camStream=null;camTrack=null;$('#camv').srcObject=null;$('#cam').hidden=true}
+  /* 후면 카메라 여러 개(광각/초광각/접사) 중 초점이 되는 주 카메라를 고르고, 연속 자동초점·탭 초점·확대를 켬 */
+  var camTrack=null,backCams=[],camIdx=-1;
+  function camConstraints(devId){
+    var v={width:{ideal:2560},height:{ideal:1440}};
+    if(devId)v.deviceId={exact:devId};else v.facingMode={ideal:'environment'};
+    return {video:v,audio:false};
+  }
+  function caps(){try{return camTrack&&camTrack.getCapabilities?camTrack.getCapabilities():{}}catch(e){return {}}}
+  function setupTrack(){
+    camTrack=camStream?camStream.getVideoTracks()[0]:null;var c=caps();
+    if(c.focusMode&&c.focusMode.indexOf('continuous')>=0){camTrack.applyConstraints({advanced:[{focusMode:'continuous'}]}).catch(function(){})}
+    var zr=$('#zoomRow'),z=$('#zoom');
+    if(c.zoom&&c.zoom.max>c.zoom.min){z.min=c.zoom.min;z.max=Math.min(c.zoom.max,c.zoom.min*8);z.step=c.zoom.step||0.1;z.value=c.zoom.min;zr.hidden=false}else zr.hidden=true;
+  }
+  function startCam(devId){
+    if(camStream){camStream.getTracks().forEach(function(t){t.stop()})}
+    return navigator.mediaDevices.getUserMedia(camConstraints(devId)).then(function(st){
+      camStream=st;var v=$('#camv');v.srcObject=st;$('#cam').hidden=false;var p=v.play();if(p&&p.catch)p.catch(function(){});
+      setupTrack();
+    });
+  }
+  function listBackCams(){
+    if(!navigator.mediaDevices.enumerateDevices)return Promise.resolve([]);
+    return navigator.mediaDevices.enumerateDevices().then(function(ds){
+      var vs=ds.filter(function(d){return d.kind==='videoinput'});
+      var back=vs.filter(function(d){return /back|rear|environment|후면|뒤/i.test(d.label)});
+      return back.length?back:vs;
+    }).catch(function(){return []});
+  }
   function openCam(kind){
-    camPreset=presetFor(kind);
+    camPreset=presetFor(kind);camKind=kind;
     if(!(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia)){return fileFallback(kind)}
-    navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:2560},height:{ideal:1440}},audio:false}).then(function(st){
-      camStream=st;camKind=kind;var v=$('#camv');v.srcObject=st;$('#cam').hidden=false;var p=v.play();if(p&&p.catch)p.catch(function(){});
+    var saved=ss('camDev');
+    startCam(saved||null).catch(function(){return saved?(ss('camDev',''),startCam(null)):Promise.reject()}).then(function(){
+      return listBackCams().then(function(bs){
+        backCams=bs;$('#camLens').hidden=bs.length<2;
+        var cur=camTrack&&camTrack.getSettings?camTrack.getSettings().deviceId:'';
+        camIdx=bs.findIndex(function(d){return d.deviceId===cur});
+        /* 처음이면 주 카메라(안드로이드 크롬 라벨 "camera2 0, facing back")로 바꿈. 초광각/접사 렌즈는 라벨 초점이 안 맞는 경우가 많음 */
+        if(!saved&&bs.length>1){
+          var main=bs.find(function(d){return /camera2? ?0\b|camera 0\b/i.test(d.label)})||bs[0];
+          if(main&&main.deviceId&&main.deviceId!==cur){camIdx=bs.indexOf(main);return startCam(main.deviceId).catch(function(){})}
+        }
+      });
     }).catch(function(){fileFallback(kind)});
   }
+  $('#camLens').addEventListener('click',function(){
+    if(backCams.length<2)return;camIdx=(camIdx+1)%backCams.length;var d=backCams[camIdx];
+    ss('camDev',d.deviceId);startCam(d.deviceId).catch(function(){ss('camDev','')});
+  });
+  $('#zoom').addEventListener('input',function(){if(camTrack)camTrack.applyConstraints({advanced:[{zoom:Number(this.value)}]}).catch(function(){})});
+  $('#camv').addEventListener('click',function(e){
+    var r=this.getBoundingClientRect(),x=(e.clientX-r.left)/r.width,y=(e.clientY-r.top)/r.height,ring=$('#focusRing');
+    ring.style.left=(x*100)+'%';ring.style.top=(y*100)+'%';ring.hidden=false;setTimeout(function(){ring.hidden=true},900);
+    var c=caps();if(!camTrack||!c.focusMode)return;
+    var adv={};if(c.focusMode.indexOf('single-shot')>=0)adv.focusMode='single-shot';else if(c.focusMode.indexOf('continuous')>=0)adv.focusMode='continuous';
+    if('pointsOfInterest' in c)adv.pointsOfInterest=[{x:x,y:y}];
+    camTrack.applyConstraints({advanced:[adv]}).catch(function(){camTrack.applyConstraints({advanced:[{focusMode:adv.focusMode}]}).catch(function(){})});
+    if(adv.focusMode==='single-shot')setTimeout(function(){if(camTrack&&c.focusMode.indexOf('continuous')>=0)camTrack.applyConstraints({advanced:[{focusMode:'continuous'}]}).catch(function(){})},2500);
+  });
+  $('#camNative').addEventListener('click',function(){var k=camKind;closeCam();fileFallback(k)});
   function fileFallback(kind){
     say('앱 안 카메라를 쓸 수 없어 기본 카메라로 찍습니다. 이 경우 사진이 갤러리에 남을 수 있으니 촬영 후 삭제하세요.','bad');
     fileKind=kind;filePreset=camPreset||presetFor(kind);$('#pFile').click();
