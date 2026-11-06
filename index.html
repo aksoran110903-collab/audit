@@ -162,11 +162,11 @@ button:focus-visible,.chip:focus-visible{outline:3px solid var(--accent);outline
 <script>
 (function(){
   var $=function(s){return document.querySelector(s)};
-  var KINDS=[['monitor','모니터'],['dock','도킹'],['pc','PC'],['printer','프린터'],['video','영상장비']],KLABEL={monitor:'모니터',dock:'도킹',pc:'PC',printer:'프린터',video:'영상장비'},KORDER={monitor:0,dock:1,pc:2,printer:3,video:4},HINT={monitor:'OSD 정보 화면 또는 뒷면 라벨',dock:'바닥면 S/N 스티커',pc:'본체 라벨 또는 정보 화면',printer:'뒷면·옆면 S/N 라벨',video:'뒷면·바닥면 S/N 라벨'},models=[],isAdmin=false,pcOcr=false,PAGE_VER='2026.11.06-b',serverVer='',canExtract=false,token='',who='',records=[],drafts=[],filter='today',seq=0,worker=null,workerP=null,editing=null;
+  var KINDS=[['monitor','모니터'],['dock','도킹'],['pc','PC'],['printer','프린터'],['video','영상장비']],KLABEL={monitor:'모니터',dock:'도킹',pc:'PC',printer:'프린터',video:'영상장비'},KORDER={monitor:0,dock:1,pc:2,printer:3,video:4},HINT={monitor:'OSD 정보 화면 또는 뒷면 라벨',dock:'바닥면 S/N 스티커',pc:'본체 라벨 또는 정보 화면',printer:'뒷면·옆면 S/N 라벨',video:'뒷면·바닥면 S/N 라벨'},models=[],isAdmin=false,pcOcr=false,PAGE_VER='2026.11.06-c',serverVer='',canExtract=false,token='',who='',records=[],drafts=[],filter='today',seq=0,worker=null,workerP=null,editing=null;
 
   /* 이 폰에는 창을 닫으면 사라지는 임시 저장(sessionStorage)만 씁니다 */
   /* 서버 주소: 이 화면을 서버가 아닌 곳(GitHub Pages 등)에 올렸을 때 사용. 터널시작.bat 이 front.html 을 만들 때 채움 */
-  var API_DEFAULT='https://battalion-deluge-filter.ngrok-free.dev';
+  var API_DEFAULT='https://jcdrllh9-8080.jpe1.devtunnels.ms';
   var API=(function(){var q='';try{q=new URLSearchParams(location.search).get('api')||'';if(q)sessionStorage.setItem('api',q);else q=sessionStorage.getItem('api')||''}catch(e){}return String(q||API_DEFAULT||'').replace(/\/+$/,'')})();
   function ss(k,v){try{if(v===undefined)return sessionStorage.getItem(k)||'';if(v==='')sessionStorage.removeItem(k);else sessionStorage.setItem(k,v)}catch(e){return ''}}
   function say(t,c){var m=$('#msg');m.textContent=t||'';m.className='msg '+(c||'')}
@@ -176,7 +176,7 @@ button:focus-visible,.chip:focus-visible{outline:3px solid var(--accent);outline
   /* ---------- API ---------- */
   function showVer(){var v=$('#ver');if(!v)return;v.textContent='화면 '+PAGE_VER+' / 서버 '+serverVer+(serverVer!==PAGE_VER?'  ← 서버가 예전 버전입니다. 서버(검은 창)를 완전히 끄고 터널시작.bat 을 다시 실행하세요.':'');v.style.color=serverVer!==PAGE_VER?'#c0392b':''}
   function api(method,path,body){
-    return fetch(API+path,{method:method,cache:'no-store',headers:{'Content-Type':'application/json','ngrok-skip-browser-warning':'1','X-Token':token,'X-Who':encodeURIComponent(who)},body:body?JSON.stringify(body):undefined})
+    return fetch(API+path,{method:method,cache:'no-store',headers:{'Content-Type':'application/json','ngrok-skip-browser-warning':'1','X-Tunnel-Skip-AntiPhishing-Page':'true','X-Token':token,'X-Who':encodeURIComponent(who)},body:body?JSON.stringify(body):undefined})
       .then(function(r){return r.json().catch(function(){return {}}).then(function(j){if(!r.ok){var e=new Error(j.error||('HTTP '+r.status));e.status=r.status;e.data=j;throw e}return j})});
   }
   function load(){return api('GET','/api/records?day='+filter).then(function(j){records=j.records||[];if(!editing)renderList()}).catch(function(e){if(e.status===401){logout()}else say('기록을 불러오지 못했습니다.','bad')})}
